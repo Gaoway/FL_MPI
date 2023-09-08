@@ -1,0 +1,50 @@
+---
+# model
+model_type: 'wide&deep'                   # "cnn", "resnet18", "vgg9"
+embed_dim: 32
+mlp_dims: [32, 32]
+dropout: 0.2
+# cnn_hidden_size: [64, 128, 128]
+# resnet_hidden_size: [64, 64, 128, 256, 512]
+
+# data
+dataset_type: 'avazu'             # "MNIST", "CIFAR10" or "image100"
+# data_shape: [3, 32, 32]             # MNIST is [1, 28, 28], CIFAR10 is [3, 32, 32] and image100 is [3, 144, 144]
+classes_size: 2                    # MNIST is 10, CIFAR10 is 10, image100 is 100
+# data_partition_pattern: 4           # 0, 1, or 2. (0 is iid while 1 and 2 are both non-iid)
+# non_iid_ratio: 8                    # make sure: 0 < non_iid_ratio < 10
+
+# batch size
+local_batch_size: 20                # local training batch size
+# test_batch_size: 100                 # test batch size of the server
+# client_test_batch_size: 100
+
+# training setting
+lr: 0.1
+decay_rate: 0.99
+min_lr: 0.001
+momentum: 0.9                        # momentum < 0 means the momentum is None
+weight_decay: 0.0005
+
+# global control
+# client_num: 100                       # total number of clients (not the number of selected clients)
+epoch_num: 400
+local_updates: 100                      # local training step of the client in each epoch
+
+# CUDA
+server_use_cuda: True
+server_cuda: '3'                    # which gpu to choose for server
+client_use_cuda: True
+client_cuda: '-1'                   # '-1' means that client chooses the gpu adaptively according to the process id
+
+# path
+dataset_path: '/data0/lygao/dataset/avazu/partition/data_results.csv'
+cache_path: '/data0/lygao/dataset/avazu/.avazu'
+model_save_path: '/data0/lygao/git/oppo/FL_MPI/model_save/'
+data_partition_path: '/data0/lygao/dataset/avazu/partition/train_data_partition.json'
+test_data_idxes_path: '/data0/lygao/dataset/avazu/partition/test_data_idxes.json'
+
+# seed
+model_init_seed: 2024
+client_selection_seed: 2024
+data_partition_seed: 2024
