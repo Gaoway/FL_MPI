@@ -151,6 +151,12 @@ async def local_training(config, train_loader, test_loader, logger):
     params_dict = copy.deepcopy(local_model.state_dict())
     
     params_dict  = model_quantization(params_dict, level = 8)
+#    for name, param in params_dict.items():
+#        if param.dtype == torch.float32:
+#            param_i = (param*127*2).to(torch.int16)
+#            param_f = param_i.to(torch.float16)/(127.0*2)
+#
+#            params_dict[name] = param_f
     
     config.params_dict  = params_dict
     config.train_time = train_time
@@ -165,7 +171,7 @@ def model_quantization(params_dict, level=0):
                 max_val = param.max()
                 scale_8 = 255. / (max_val - min_val)
                 zero_point_8 = -min_val * scale_8
-                param_8 = (param * scale_8 + zero_point_8).clamp(0, 255).byte()
+                param_8 = (param * scale_8 + zero_point_8 + 0.5).clamp(0, 255).byte()
                 
                 param_dq8 = (param_8.float() - zero_point_8) / scale_8
                 params_dict[name]   = param_dq8
@@ -174,9 +180,9 @@ def model_quantization(params_dict, level=0):
                 max_val = param.max()
                 scale_4 = 15. / (max_val - min_val)
                 zero_point_4 = -min_val * scale_4
-                param_4 = (param * scale_4 + zero_point_4).clamp(0, 15).byte()
+                param_4 = (param * scale_4 + zero_point_4+0.5).clamp(0, 15).byte()
                 
-                param_dq4 = (param_4.float() - zero_point_8) / scale_4
+                param_dq4 = (param_4.float() - zero_point_4) / scale_4
                 params_dict[name]   = param_dq4
             else:
                 return params_dict
