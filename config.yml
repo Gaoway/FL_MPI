@@ -33,7 +33,7 @@ local_updates: 100                      # local training step of the client in e
 
 # CUDA
 server_use_cuda: True
-server_cuda: '3'                    # which gpu to choose for server
+server_cuda: '1'                    # which gpu to choose for server
 client_use_cuda: True
 client_cuda: '-1'                   # '-1' means that client chooses the gpu adaptively according to the process id
 

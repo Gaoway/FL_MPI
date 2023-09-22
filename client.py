@@ -26,3 +26,4 @@ class ClientConfig:
 
         self.train_time = 0
         self.send_time = 0
+        self.q_level    =16
