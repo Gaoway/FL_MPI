@@ -52,7 +52,7 @@ def main():
         communicate_with_server(client_config, comm_tag, action='get_config')
         
         logger = init_logger(comm_tag, client_config)
-        logger.info(f"{client_config.idx}: Quantization level: {client_config.q_level}")
+
         logger.info("_____****_____\nEpoch: {:04d}".format(client_config.epoch_idx))
 
         #torch.manual_seed(12345)  # 设置CPU和CUDA种子
@@ -142,16 +142,8 @@ async def local_training(config, train_loader, test_loader, logger):
         "Train_Time: {:.4f}\n".format(train_time)
     )
 
-    # test_loss, test_acc = test(local_model, test_loader, device)
-
-    # logger.info(
-    #     "Test_Loss: {:.4f}\n".format(test_loss) +
-    #     "Test_ACC: {:.4f}\n".format(test_acc)
-    # )
-    
     params_dict = copy.deepcopy(local_model.state_dict())
     
-    #params_dict  = model_quantization(params_dict, level = 8)
     params_dict  = quantization(params_dict, level = config.q_level)
     logger.info(f"{config.idx}: Quantization level: {config.q_level}")
 
@@ -163,6 +155,13 @@ def quantization(params_dict, level=32):
         if param.dtype == torch.float32:
             if level == 16:#16bit
                 params_dict[name] = param.to(torch.float16)
+                
+            elif level == 12:
+                param_i = torch.round((param*2047))
+                param_i = param_i.to(torch.int16)
+                param_f = param_i/(2047.0)
+                params_dict[name] = param_f
+            
             elif level == 8:
                 param_i = torch.round((param*127))
                 param_i = param_i.to(torch.int16)
@@ -170,6 +169,7 @@ def quantization(params_dict, level=32):
                 params_dict[name] = param_f
             else:
                 break
+             
     return params_dict            
                 
 def model_quantization(params_dict, level=0):
@@ -197,8 +197,7 @@ def model_quantization(params_dict, level=0):
             
             param_dq = (param.float() - zero_point) / scale
             params_dict[name]   = param_dq
-            
-                
+       
     return params_dict
 
 if __name__ == '__main__':

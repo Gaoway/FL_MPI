@@ -52,6 +52,27 @@ logger.addHandler(fileHandler)
 
 comm_tags = np.ones(200 + 1)
 
+def quantization(params_dict, level=32):
+    for name, param in params_dict.items():
+        if param.dtype == torch.float32:
+            if level == 16:#16bit
+                params_dict[name] = param.to(torch.float16)
+                
+            elif level == 12:
+                param_i = torch.round((param*2047))
+                param_i = param_i.to(torch.int16)
+                param_f = param_i/(2047.0)
+                params_dict[name] = param_f
+            
+            elif level == 8:
+                param_i = torch.round((param*127))
+                param_i = param_i.to(torch.int16)
+                param_f = param_i/(127.0)
+                params_dict[name] = param_f
+            else:
+                break
+             
+    return params_dict 
 
 def main():
     f = open(cfg['data_partition_path'], "r")
@@ -88,11 +109,13 @@ def main():
     best_epoch = 1
     best_auc = 0
     # begin each epoch
+    down_total_bandwidth    = 0 # full model as 32, 16 quantization as 16, and 8 quantization as 8. How about 12?
+    up_total_bandwidth  = 0
+    
     for epoch_idx in range(1, 1 + cfg['epoch_num']):
         logger.info("_____****_____\nEpoch: {:04d}".format(epoch_idx))
         print("_____****_____\nEpoch: {:04d}".format(epoch_idx))
-
-
+        
         # The client selection algorithm can be implemented
         selected_num = 30
         selected_client_idxes = sample(range(client_num), selected_num)
@@ -103,20 +126,23 @@ def main():
         train_data_len = []
         for i in selected_client_idxes:
             train_data_len.append(train_data_partition[i])
-            #logger.info(f"{i}: len: {len(train_data_partition[i])}") 
         sorted_train_data_len = sorted(train_data_len)
-        part_raito = 0
+        
+        part_raito = 0.8-0.6*(epoch_idx-1)/cfg['epoch_num']       
         part_point = sorted_train_data_len[int(selected_num * part_raito)]
+        logger.info(f"point: {int(selected_num * part_raito)} ")
         
         for client_idx in selected_client_idxes:
-            #if train_data_partition[client_idx] < part_point:
-            #    all_clients[client_idx].q_level = 8
-            #else:
-            #    all_clients[client_idx].q_level = 16
-            if epoch_idx <= 6:
+            if False and epoch_idx <= 6:
                 all_clients[client_idx].q_level = 16
-            else:
+            elif train_data_partition[client_idx] < part_point:
                 all_clients[client_idx].q_level = 8
+            else:
+                all_clients[client_idx].q_level = 16
+            #if epoch_idx <= 6:  
+            #    all_clients[client_idx].q_level = 16
+            #else:
+            #    all_clients[client_idx].q_level = 12
                 
             all_clients[client_idx].epoch_idx = epoch_idx
             all_clients[client_idx].lr = max(cfg['decay_rate'] * all_clients[client_idx].lr, cfg['min_lr'])

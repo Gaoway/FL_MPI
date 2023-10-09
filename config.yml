@@ -28,12 +28,12 @@ weight_decay: 0.0005
 
 # global control
 # client_num: 100                       # total number of clients (not the number of selected clients)
-epoch_num: 800
+epoch_num: 600
 local_updates: 100                      # local training step of the client in each epoch
 
 # CUDA
 server_use_cuda: True
-server_cuda: '1'                    # which gpu to choose for server
+server_cuda: '3'                    # which gpu to choose for server
 client_use_cuda: True
 client_cuda: '-1'                   # '-1' means that client chooses the gpu adaptively according to the process id
 

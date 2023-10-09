@@ -6,7 +6,7 @@ import pandas as pd
 
 log_file_path1 = "/data0/lygao/git/oppo/FL_MPI/adp_server_log/2023-09-21-11_49_57_adp_server_main_q.log"
 log_file_path2 = "/data0/lygao/git/oppo/FL_MPI/adp_server_log/2023-09-21-14_45_57_adp_server_main_q.log"
-log_file_path3 = "/data0/slwang/FL_MPI_CV_REC_Compress/server_log/2023-09-19-10_58_19_server_main.log"
+log_file_path3 = "/data0/slwang/FL_MPI_CV_REC_Compress/server_log/2023-09-19-10_58_19_server_main.log"  #origin
 log_file_path4 = "/data0/lygao/git/oppo/FL_MPI/adp_server_log/2023-09-21-15_58_48_adp_server_main_q.log"
 
 with open(log_file_path1, "r") as file:
