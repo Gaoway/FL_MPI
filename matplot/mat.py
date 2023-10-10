@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter1d
 import pandas as pd
 
-log_file_path1 = "/data0/lygao/git/oppo/FL_MPI/adp_server_log/2023-09-21-11_49_57_adp_server_main_q.log"
-log_file_path2 = "/data0/lygao/git/oppo/FL_MPI/adp_server_log/2023-09-21-14_45_57_adp_server_main_q.log"
-log_file_path3 = "/data0/slwang/FL_MPI_CV_REC_Compress/server_log/2023-09-19-10_58_19_server_main.log"  #origin
-log_file_path4 = "/data0/lygao/git/oppo/FL_MPI/adp_server_log/2023-09-21-15_58_48_adp_server_main_q.log"
+log_file_path1 = "/data0/lygao/git/oppo/FL_MPI/adp_server_log/16bit_q_2023-09-21-11_49_57_adp_server_main_q.log" #16bit
+log_file_path2 = "/data0/lygao/git/oppo/FL_MPI/adp_server_dblink_log/adp16~12~82023-10-09-21_32_44_adp_server_main_dblink.log" #adp 16-12-8bit
+log_file_path3 = "/data0/lygao/git/oppo/FL_MPI/adp_server_dblink_log/16128~dwn-122023-10-10-14_44_28_adp_server_main_dblink.log"  #dwn12bit
+log_file_path4 = "/data0/lygao/git/oppo/FL_MPI/adp_server_dblink_log/adp16~12~8-dwn162023-10-10-11_21_57_adp_server_main_dblink.log" #adpc-16-12-8-d16bit
 
 with open(log_file_path1, "r") as file:
     log_content1 = file.read()
@@ -58,15 +58,15 @@ epochs4, aucs4,df4 = extract_data1(log_content4)
 s_aucs4 = gaussian_filter1d(aucs4, sigma=1)
 
 plt.figure(figsize=(10, 6))
-plt.plot([x * (16 / 1024 /2) for x in epochs1[:420]], s_aucs1[:420], 'k-', markersize=0, label="16bit") 
-plt.plot([x * (16 / 1024*(3/8)) for x in epochs1[:420]], s_aucs2[:420],  'r-', markersize=0, label="adp-16-8bit") 
-plt.plot([x * (16 / 1024) for x in epochs1[:400]], s_aucs3[:420],  'b-', markersize=0, label="origin") 
-plt.plot([x * (16 / 1024/4) for x in epochs1[:420]], s_aucs4[:420],  'c-', markersize=0, label="8bit") 
-plt.xlabel("GB")
+plt.plot([x  for x in epochs1[:]], s_aucs1[:], 'k-', markersize=0, label="16bit") 
+plt.plot([x  for x in epochs2[:]], s_aucs2[:],  'r-', markersize=0, label="adp-16~12~8bit") 
+plt.plot([x  for x in epochs3[:]], s_aucs3[:],  'b-', markersize=0, label="adpc-16~12~8-dwn12bit") 
+plt.plot([x  for x in epochs4[:]], s_aucs4[:],  'c-', markersize=0, label="adpc-16~12~8-dwn16bit") 
+plt.xlabel("epoch")
 plt.ylabel("Test AUC")
 plt.title("Test AUC of Commnication Cost")
 plt.legend()  # 显示图例
 plt.grid(True)
 
 
-plt.savefig("/data0/lygao/git/oppo/FL_MPI/matplot/165.png")
+plt.savefig("/data0/lygao/git/oppo/FL_MPI/matplot/pics/adp16128-dwn16-12eph.png")

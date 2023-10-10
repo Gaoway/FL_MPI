@@ -61,4 +61,11 @@ if param.dtype == torch.float32:
 实验设计
 0922-2000 12bit quantize
 
-1.
+1. only adp-quantization of uploading, 8-12-16bit with 8-60%~20% 12-20%~20% 16-20%~60% and 420epoch
+    compare with 16bit, 12bit, 8bit, adp16-8, 
+
+2. downloading fixed 12bit and 16bit quantization
+    compare with no downloading quantization and 16,12,adp-q fed training
+
+3. downloading fixed bit and uploading adp-q training 
+

@@ -36,7 +36,7 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 csize = comm.Get_size()
 
-RESULT_PATH = os.getcwd() + '/adp_server_log/'
+RESULT_PATH = os.getcwd() + '/adp_server_dblink_log/'
 if not os.path.exists(RESULT_PATH):
     os.makedirs(RESULT_PATH, exist_ok=True)
 # init logger
@@ -52,27 +52,28 @@ logger.addHandler(fileHandler)
 
 comm_tags = np.ones(200 + 1)
 
-def quantization(params_dict, level=32):
-    for name, param in params_dict.items():
+def server_quantization(params_dict, level=32):
+    new_dict = copy.deepcopy(params_dict)
+    for name, param in new_dict.items():
         if param.dtype == torch.float32:
             if level == 16:#16bit
-                params_dict[name] = param.to(torch.float16)
+                new_dict[name] = param.half()
                 
             elif level == 12:
                 param_i = torch.round((param*2047))
                 param_i = param_i.to(torch.int16)
                 param_f = param_i/(2047.0)
-                params_dict[name] = param_f
+                new_dict[name] = param_f
             
             elif level == 8:
                 param_i = torch.round((param*127))
                 param_i = param_i.to(torch.int16)
                 param_f = param_i/(127.0)
-                params_dict[name] = param_f
+                new_dict[name] = param_f
             else:
                 break
              
-    return params_dict 
+    return new_dict 
 
 def main():
     f = open(cfg['data_partition_path'], "r")
@@ -112,6 +113,7 @@ def main():
     down_total_bandwidth    = 0 # full model as 32, 16 quantization as 16, and 8 quantization as 8. 
     up_total_bandwidth  = 0
     
+    
     for epoch_idx in range(1, 1 + cfg['epoch_num']):
         logger.info("_____****_____\nEpoch: {:04d}".format(epoch_idx))
         print("_____****_____\nEpoch: {:04d}".format(epoch_idx))
@@ -129,12 +131,16 @@ def main():
             train_data_len.append(train_data_partition[i])
         sorted_train_data_len = sorted(train_data_len)
         
-        part_ratio1 = 0.6-0.4*(epoch_idx-1)/cfg['epoch_num'] # 60%~20%
-        part_ratio2 = 0.8-0.4*(epoch_idx-1)/cfg['epoch_num'] # 80%~40%
+        part_ratio1 = 0.6-0.6*(epoch_idx-1)/cfg['epoch_num'] # 60%~0% for 8bit 
+        part_ratio2 = 0.8-0.6*(epoch_idx-1)/cfg['epoch_num'] # 80%~20% for 12bit
         part_point1 = sorted_train_data_len[int(selected_num * part_ratio1)]
         part_point2 = sorted_train_data_len[int(selected_num * part_ratio2)]
         logger.info(f"8 bit point: {int(selected_num * part_ratio1)} ")
-        logger.info(f"16 bit point: {int(selected_num * (part_ratio2-part_ratio1))} ")
+        logger.info(f"12 bit point: {int(selected_num * (part_ratio2-part_ratio1))} ")
+        
+        # quantizate of gloabl model
+        global_level = 12
+        new_server_model    = server_quantization(global_model.state_dict(), level=global_level)
         
         for client_idx in selected_client_idxes:
             if True and epoch_idx <= 6:
@@ -154,8 +160,9 @@ def main():
             all_clients[client_idx].lr = max(cfg['decay_rate'] * all_clients[client_idx].lr, cfg['min_lr'])
             all_clients[client_idx].local_updates = min(int(len(all_clients[client_idx].train_data_idxes) / cfg['local_batch_size']), cfg['local_updates'])
             all_clients[client_idx].train_batch_size = cfg['local_batch_size']
-            all_clients[client_idx].params_dict = copy.deepcopy(global_model.state_dict())
-            down_total_bandwidth += 32
+            all_clients[client_idx].params_dict = copy.deepcopy(new_server_model)
+                      
+            down_total_bandwidth += global_level
             selected_clients.append(all_clients[client_idx])
                         
 
