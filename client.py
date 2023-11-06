@@ -7,6 +7,7 @@ class ClientConfig:
         self.epoch_idx = 0
         self.local_updates = 0
         self.train_batch_size = 0
+        self.download_compress_ratio = 0.5
         # self.params = None
 
         self.train_data_idxes = None
