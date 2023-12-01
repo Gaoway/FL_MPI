@@ -15,7 +15,7 @@ classes_size: 2                    # MNIST is 10, CIFAR10 is 10, image100 is 100
 # non_iid_ratio: 8                    # make sure: 0 < non_iid_ratio < 10
 
 # batch size
-local_batch_size: 20                # local training batch size
+local_batch_size: 32                # local training batch size
 # test_batch_size: 100                 # test batch size of the server
 # client_test_batch_size: 100
 

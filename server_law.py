@@ -2,7 +2,8 @@ import copy
 import asyncio
 from collections import OrderedDict
 from typing import List
-
+import torch.optim as optim
+import torch.nn.functional as F
 from torch import nn
 import json
 
@@ -36,7 +37,7 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 csize = comm.Get_size()
 
-RESULT_PATH = os.getcwd() + '/log/server_log/'
+RESULT_PATH = os.getcwd() + '/log/server_law/'
 if not os.path.exists(RESULT_PATH):
     os.makedirs(RESULT_PATH, exist_ok=True)
 # init logger
@@ -59,10 +60,16 @@ def main():
     test_data_idxes = json.load(f)
     client_num = len(train_data_partition)
     # load the test dataset and test loader
-    _, test_dataset = datasets.utils.load_datasets(cfg['dataset_type'], cfg['dataset_path'])
+    train_dataset , test_dataset = datasets.utils.load_datasets(cfg['dataset_type'], cfg['dataset_path'])
     test_batch_size = len(test_dataset)
-    print(test_batch_size)
+    
+    logger.info(f"Test batch size: {test_batch_size},test idx: {len(test_data_idxes)}")
+    
     test_loader = datasets.utils.create_dataloaders(test_dataset, batch_size=test_batch_size + 100, selected_idxs=test_data_idxes, shuffle=False)
+    
+    valid_idx = test_data_idxes[::3]
+    valid_loader = datasets.utils.create_dataloaders(test_dataset, batch_size=128, selected_idxs=valid_idx, shuffle=True)
+    
     logger.info("Total number of clients: {}".format(client_num))
     logger.info("\nModel type: {}".format(cfg["model_type"]))
     logger.info("Dataset: {}".format(cfg["dataset_type"]))
@@ -97,6 +104,13 @@ def main():
         logger.info("Selected client idxes: {}".format(selected_client_idxes))
         print("Selected client idxes: {}".format(selected_client_idxes))
         selected_clients = []
+        
+        size_weights = []
+        for i in selected_client_idxes:
+            size_weights.append(len(train_data_partition[i]))
+        logger.info(f"size_weights: {size_weights}")
+        size_weights = [i/sum(size_weights) for i in size_weights]
+        
         for client_idx in selected_client_idxes:
             all_clients[client_idx].epoch_idx = epoch_idx
             all_clients[client_idx].lr = max(cfg['decay_rate'] * all_clients[client_idx].lr, cfg['min_lr'])
@@ -111,10 +125,17 @@ def main():
 
         # 从选中的客户端那里接收配置，此时选中的客户端均已完成本地训练。配置包括训练好的本地模型，学习率等
         communication_parallel(selected_clients, action="get_config")
+        
+        #use FedLAW to better aggregate models
+        parameters = [client.params_dict for client in selected_clients]
+        gamma, optimized_weight = fedlaw_optimization(size_weights, parameters, global_model,  valid_loader)
 
         # aggregate the clients' local model parameters
-        aggregate_models(global_model, selected_clients, gamma=0.99)
+        #aggregate_models(global_model, selected_clients)
+        logger.info(f"gamma: {gamma}, optimized_weight: {optimized_weight}, size_weights: {size_weights}, sum: {sum(size_weights)}")
 
+        global_model = fedlaw_generate_global_model(gamma, optimized_weight, selected_clients, global_model)
+        
         # test the global model
         test_loss, test_auc, test_acc = test(global_model, test_loader, device)
 
@@ -138,7 +159,7 @@ def main():
             comm_tags[m + 1] += 1
 
 
-def aggregate_models(global_model, client_list, gamma = 1):
+def aggregate_models(global_model, client_list):
     with torch.no_grad():
         params_dict = copy.deepcopy(global_model.state_dict())
         total_updates = 0
@@ -146,7 +167,7 @@ def aggregate_models(global_model, client_list, gamma = 1):
             total_updates += client.local_updates
         
         for client in client_list:
-            client.aggregate_weight = gamma*client.local_updates / total_updates
+            client.aggregate_weight = client.local_updates / total_updates
             for k, v in client.params_dict.items():
                 params_dict[k] = params_dict[k].detach() + copy.deepcopy(
                     client.aggregate_weight * (v - global_model.state_dict()[k])
@@ -179,6 +200,65 @@ def communication_parallel(client_list, action):
     loop.run_until_complete(asyncio.wait(tasks))
     loop.close()
 
+
+def fedlaw_optimization(size_weights, parameters, central_node, train_loader):
+    cohort_size = len(parameters)
+    server_lr = 0.01
+    server_epochs = 10
+    
+    optimizees = torch.tensor([torch.log(torch.tensor(j)) for j in size_weights] + [0.0], device='cuda', requires_grad=True)
+    optimizee_list = [optimizees]
+    
+    optimizer = optim.SGD(optimizee_list, lr=server_lr, momentum=0.9)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
+    
+    for i in range(len(optimizee_list)):
+        optimizee_list[i].grad = torch.zeros_like(optimizee_list[i])
+        
+    softmax = nn.Softmax(dim=0)
+    
+    new_node = copy.deepcopy(central_node)
+    new_node.train()
+    for epoch in range(server_epochs): 
+        for itr, (data, target) in enumerate(train_loader.loader):
+            for i in range(cohort_size):
+                if i == 0:
+                    #model_param = torch.exp(optimizees[-1])*softmax(optimizees[:-1])[i]*parameters[i]
+                    for param, new_param in zip(new_node.parameters(), parameters[i]):
+                        print(softmax(optimizees[:-1]))  # 检查 softmax 输出
+                        print(softmax(optimizees[:-1])[i])  
+                        print(torch.exp(optimizees[-1])*softmax(optimizees[:-1])[i])  
+                        print(torch.exp(optimizees[-1])*softmax(optimizees[:-1])[i]*new_param)  
+                        param.copy_(torch.exp(optimizees[-1])*softmax(optimizees[:-1])[i]*new_param)
+                else:
+                    #model_param = model_param.add(torch.exp(optimizees[-1])*softmax(optimizees[:-1])[i]*parameters[i])
+                    for param, new_param in zip(new_node.parameters(), parameters[i]):
+                        param.add_(torch.exp(optimizees[-1])*softmax(optimizees[:-1])[i]*new_param)
+            
+            #with torch.no_grad():
+            #    for param, new_param in zip(new_node.parameters(), model_param):
+            #        param.copy_(new_param)
+                    
+            data, target = data.cuda(), target.cuda()
+            optimizer.zero_grad()
+            output = new_node(data)
+            loss =  F.cross_entropy(output, target)
+            loss.backward()
+            optimizer.step()
+        scheduler.step()
+        optmized_weights = [j for j in softmax(optimizees[:-1]).detach().cpu().numpy()]
+        learned_gamma = torch.exp(optimizees[-1])
+    return learned_gamma, optmized_weights
+
+def fedlaw_generate_global_model(gamma, optmized_weights, client_params, central_node):
+    for i in range(len(client_params)):
+        if i == 0:
+            fedlaw_param = gamma*optmized_weights[i]*client_params[i]
+        else:
+            fedlaw_param = fedlaw_param.add(gamma*optmized_weights[i]*client_params[i])
+    central_node.load_param(copy.deepcopy(fedlaw_param.detach()))
+
+    return central_node     
 
 if __name__ == "__main__":
     main()

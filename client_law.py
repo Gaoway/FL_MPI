@@ -30,7 +30,7 @@ device = torch.device("cuda" if cfg['client_use_cuda'] and torch.cuda.is_availab
 
 
 now = time.strftime("%Y-%m-%d-%H_%M", time.localtime(time.time()))
-RESULT_PATH = os.getcwd() + '/log/clients_log/' + now + '/'
+RESULT_PATH = os.getcwd() + '/log/clients_law/' + now + '/'
 
 if not os.path.exists(RESULT_PATH):
     os.makedirs(RESULT_PATH, exist_ok=True)
